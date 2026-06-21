@@ -25,7 +25,10 @@ def _llm() -> ChatOllama:
 
 def router_node(state: AgentState) -> AgentState:
     prompt = (
-        "Does answering this question require factual knowledge about ML, math, or AI? "
+        "Does answering this question require specialized knowledge about machine learning, "
+        "AI systems, neural networks, or advanced mathematics specific to ML/AI "
+        "(such as embeddings, loss functions, transformers, or optimization)? "
+        "Simple arithmetic, general knowledge, and conversational questions should be answered directly. "
         "Reply with YES or NO only.\n"
         f"Question: {state['user_message']}"
     )
