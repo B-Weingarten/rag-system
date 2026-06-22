@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import AsyncGenerator, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -8,7 +9,22 @@ from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
 
 from src.agent.tools import search_knowledge_base
+from src.api.schemas import RouteDecision
 from src.config import OLLAMA_HOST, OLLAMA_MODEL
+
+_ROUTER_PROMPT = (
+    'Use "rag" only when the question asks about topics covered in this knowledge base: '
+    "vector embeddings, similarity metrics, RAG pipelines, chunking, or indexing. "
+    'Use "direct" for everything else, including general ML concepts the model already knows.\n'
+    "Examples:\n"
+    '  "What is cosine similarity?"     -> {{"route": "rag"}}\n'
+    '  "What are embeddings?"           -> {{"route": "rag"}}\n'
+    '  "How does RAG retrieval work?"   -> {{"route": "rag"}}\n'
+    '  "What is 2+2?"                   -> {{"route": "direct"}}\n'
+    '  "What is the capital of France?" -> {{"route": "direct"}}\n\n'
+    'Return ONLY a JSON object with one key "route" set to "rag" or "direct".\n\n'
+    "Question: {query}"
+)
 
 
 class AgentState(TypedDict):
@@ -24,17 +40,13 @@ def _llm() -> ChatOllama:
 
 
 def router_node(state: AgentState) -> AgentState:
-    prompt = (
-        "Does answering this question require specialized knowledge about machine learning, "
-        "AI systems, neural networks, or advanced mathematics specific to ML/AI "
-        "(such as embeddings, loss functions, transformers, or optimization)? "
-        "Simple arithmetic, general knowledge, and conversational questions should be answered directly. "
-        "Reply with YES or NO only.\n"
-        f"Question: {state['user_message']}"
-    )
-    response = _llm().invoke([HumanMessage(content=prompt)])
-    answer_text = response.content.strip().upper()
-    route = "rag" if "YES" in answer_text else "direct"
+    prompt = _ROUTER_PROMPT.format(query=state["user_message"])
+    llm = ChatOllama(base_url=OLLAMA_HOST, model=OLLAMA_MODEL, format="json")
+    response = llm.invoke([HumanMessage(content=prompt)])
+    try:
+        route = RouteDecision(**json.loads(response.content)).route
+    except Exception:
+        route = "direct"
     return {**state, "route": route}
 
 
@@ -126,9 +138,8 @@ async def astream_agent(user_message: str) -> AsyncGenerator[dict, None]:
         ]
         used_rag = False
 
-    llm = ChatOllama(base_url=OLLAMA_HOST, model=OLLAMA_MODEL)
-    async for chunk in llm.astream(messages):
+    async for chunk in _llm().astream(messages):
         if chunk.content:
             yield {"type": "token", "content": chunk.content}
 
-    yield {"type": "done", "used_rag": used_rag, "retrieved_chunks": chunks}
+    yield {"type": "done", "used_rag": used_rag, "route": state["route"], "retrieved_chunks": chunks}
