@@ -45,3 +45,7 @@ htmlcov/
 
 # Chroma persistent storage (if accidentally created)
 chroma_db/
+
+# CA certificates (environment-specific, do not commit)
+certs/
+!certs/.gitkeep

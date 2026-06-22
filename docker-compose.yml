@@ -6,6 +6,8 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+      - ./certs:/usr/local/share/ca-certificates/netfree:ro
+    entrypoint: ["/bin/sh", "-c", "update-ca-certificates && ollama serve"]
     restart: unless-stopped
     # CPU-only: remove the 'deploy' block below if you have no NVIDIA GPU
     # deploy:
