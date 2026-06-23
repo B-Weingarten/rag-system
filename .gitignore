@@ -49,3 +49,9 @@ chroma_db/
 # CA certificates (environment-specific, do not commit)
 certs/
 !certs/.gitkeep
+
+# Claude Code local config
+.claude/
+
+# Assessment brief (not part of submission)
+ASSESMENT.docx
