@@ -25,15 +25,28 @@ router_node  (gemma3:1b + format="json" → RouteDecision)
 ```powershell
 # 1. Create venv and install dependencies
 python -m venv .venv; .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
-# 2. Deploy Ollama and pull gemma3:1b
+**2. Start Ollama — pick one:**
+
+_Native (PowerShell)_
+```powershell
 .\scripts\deploy.ps1
+```
 
+_Docker Compose (custom CA certs in `certs/` are auto-trusted)_
+```powershell
+docker compose up -d
+docker exec ollama ollama pull gemma3:1b
+```
+
+```powershell
 # 3. Verify Ollama is live
 $env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe scripts/verify.py
 
-# 4. Run the full test suite
-$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe -m pytest tests/ -v
+# 4. Run the core test scripts (Ollama must be running)
+$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe tests/test_rag.py
+$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe tests/test_agent.py
 
 # 5. Start the API server
 $env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe -m uvicorn src.api.main:app --reload
@@ -41,15 +54,15 @@ $env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe -m uvicorn src.api.mai
 
 ## Parts & Bonuses
 
-| | Description | Run |
-|--|-------------|-----|
-| **Part 1** | Ollama install + `gemma3:1b` pull via `scripts/deploy.ps1` | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe scripts/verify.py` |
-| **Part 2** | RAG — `all-MiniLM-L6-v2` embeddings, ChromaDB in-memory, 18 chunks | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe -m pytest tests/test_rag.py -v` |
-| **Part 3** | LangGraph agent — `router_node` → `rag_node` / `direct_node`; sync + async API | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe -m pytest tests/test_agent.py -v` |
-| **Part 4** | FastAPI `POST /chat` SSE streaming + `GET /health` | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe -m pytest tests/test_api.py -v` |
-| **Bonus 1** | Pydantic `RouteDecision` schema + `format="json"` LLM enforcement | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe -m pytest tests/test_router_schema.py -v` |
-| **Bonus 2** | Quantization benchmark — Q4/Q8/Q2, TPS + RAM → `reports/quantization_report.md` | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe scripts/benchmark_quantization.py` |
-| **Bonus 3** | `VectorBackend` Protocol + Qdrant backend + `k8s/qdrant.yaml` | `kubectl apply -f k8s/qdrant.yaml` |
+| | Description | Deliverables | Run |
+|--|-------------|--------------|-----|
+| **Part 1** | Ollama install + `gemma3:1b` pull — native via `scripts/deploy.ps1` or Docker Compose | `scripts/deploy.ps1`<br>`scripts/verify.py` | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe scripts/verify.py` |
+| **Part 2** | RAG — `all-MiniLM-L6-v2` embeddings, ChromaDB in-memory, 18 chunks | `src/rag/chunker.py`<br>`src/rag/embedder.py`<br>`src/rag/indexer.py`<br>`src/rag/retriever.py` | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe tests/test_rag.py` |
+| **Part 3** | LangGraph agent — `router_node` → `rag_node` / `direct_node`; sync + async API | `src/agent/graph.py`<br>`src/agent/tools.py` | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe tests/test_agent.py` |
+| **Part 4** | FastAPI `POST /chat` SSE streaming + `GET /health` | `src/api/main.py`<br>`src/api/schemas.py` | start server first, then: `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe tests/test_api.py` |
+| **Bonus 1** | Structured output embedded inside the agent flow: the router LLM returns a minimal validated JSON (`RouteDecision`) that directly controls the LangGraph routing decision. Schema kept intentionally small for reliability with a lightweight local model. | `src/api/schemas.py` (`RouteDecision`)<br>`tests/test_router_schema.py` | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe tests/test_router_schema.py` |
+| **Bonus 2** | Quantization benchmark — Q4 vs Q8, TPS + RAM → `reports/quantization_report.md` | `scripts/benchmark_quantization.py`<br>`reports/quantization_report.md` | `$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe scripts/benchmark_quantization.py` |
+| **Bonus 3** | `VectorBackend` Protocol + Qdrant backend + `k8s/qdrant.yaml` | `src/rag/backends/base.py`<br>`src/rag/backends/chroma.py`<br>`src/rag/backends/qdrant.py`<br>`k8s/qdrant.yaml` | `kubectl apply -f k8s/qdrant.yaml`<br>`$env:VECTOR_BACKEND="qdrant"; $env:QDRANT_URL="http://localhost:6333"`<br>`$env:PYTHONIOENCODING="utf-8"; .\.venv\Scripts\python.exe -m uvicorn src.api.main:app --reload` |
 
 ## API Reference
 
