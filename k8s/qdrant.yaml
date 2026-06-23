@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rag
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qdrant-storage
+  namespace: rag
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qdrant
+  namespace: rag
+  labels:
+    app: qdrant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+    spec:
+      containers:
+        - name: qdrant
+          image: qdrant-local:v1.9.4
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 6333
+            - name: grpc
+              containerPort: 6334
+          volumeMounts:
+            - name: storage
+              mountPath: /qdrant/storage
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 6333
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 6333
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: qdrant-storage
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant
+  namespace: rag
+spec:
+  selector:
+    app: qdrant
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333
+    - name: grpc
+      port: 6334
+      targetPort: 6334
+  type: ClusterIP

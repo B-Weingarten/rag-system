@@ -4,6 +4,7 @@ ollama>=0.3.0
 # RAG
 sentence-transformers>=2.7.0
 chromadb>=0.5.0
+qdrant-client==1.9.2
 
 # Agent
 langchain>=0.2.0
